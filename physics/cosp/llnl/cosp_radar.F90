@@ -193,7 +193,8 @@ SUBROUTINE COSP_RADAR(gbx,sgx,sghydro,z)
 
   end_time = omp_get_wtime()
 
-  print *, end_time - start_time 
+  !print *,"number of subcoloumns are",sgx%Ncolumns
+  !print *,"Time at COSP subcoloumn loop is ", end_time - start_time 
   
   ! Change undefined value to one defined in COSP
   where (z%Ze_tot == -999.0) z%Ze_tot = R_UNDEF

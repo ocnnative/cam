@@ -29,6 +29,7 @@ use cam_logfile,     only: iulog
 
 use rad_constituents, only: N_DIAG, rad_cnst_get_call_list, rad_cnst_get_info
 use radconstants,     only: rrtmg_sw_cloudsim_band, rrtmg_lw_cloudsim_band, nswbands, nlwbands
+use omp_lib
 
 implicit none
 private
@@ -593,7 +594,7 @@ end function radiation_nextsw_cday
     use physics_types,   only: physics_state, physics_ptend
     use cospsimulator_intr, only: docosp, cospsimulator_intr_run
     use cosp_share, only: cosp_nradsteps
-    use time_manager,    only: get_curr_calday
+    use time_manager,    only: get_curr_calday,get_nstep
     use camsrfexch,      only: cam_out_t, cam_in_t
     use cam_history,     only: outfld
     use cam_history_support, only: fillvalue
@@ -793,6 +794,8 @@ end function radiation_nextsw_cday
     type(rrtmg_state_t), pointer :: r_state ! contains the atm concentratiosn in layers needed for RRTMG
 
     character(*), parameter :: name = 'radiation_tend'
+
+    real (r8) start_time,end_time
 !----------------------------------------------------------------------
 
     lchnk = state%lchnk
@@ -1223,6 +1226,8 @@ end function radiation_nextsw_cday
           enddo
        end if
 
+       start_time = omp_get_wtime()
+        
        if (docosp) then
           !! cosp_cnt referenced for each chunk... cosp_cnt(lchnk)
           !! advance counter for this timestep
@@ -1230,6 +1235,7 @@ end function radiation_nextsw_cday
 
           !! if counter is the same as cosp_nradsteps, run cosp and reset counter
            if (cosp_nradsteps .eq. cosp_cnt(lchnk)) then
+
               !call should be compatible with camrt radiation.F90 interface too, should be with (in),optional
               ! N.B.: For snow optical properties, the GRID-BOX MEAN shortwave and longwave optical depths are passed.
 	      call cospsimulator_intr_run(state,  pbuf, cam_in, emis, coszrs, &
@@ -1238,6 +1244,10 @@ end function radiation_nextsw_cday
               cosp_cnt(lchnk) = 0  !! reset counter
            end if
        end if
+
+       end_time = omp_get_wtime()
+
+       !print *,"time at cosp total is ",end_time - start_time
 
     else   !  if (dosw .or. dolw) then
 
