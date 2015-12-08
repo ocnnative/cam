@@ -31,6 +31,7 @@ MODULE MOD_COSP_RADAR
   use atmos_lib
   use format_input
   use omp_lib
+  use spmd_utils, only:masterproc
   IMPLICIT NONE
   
   INTERFACE
@@ -149,8 +150,8 @@ SUBROUTINE COSP_RADAR(gbx,sgx,sghydro,z)
   ! ----- loop over subcolumns -----
 
   start_time = omp_get_wtime() 
- 
-  do pr=1,sgx%Ncolumns
+
+  do pr=1,1
       !  atmospheric profiles are the same within the same gridbox
       !  only hydrometeor profiles will be different
       if (hgt_reversed) then  
@@ -161,6 +162,8 @@ SUBROUTINE COSP_RADAR(gbx,sgx,sghydro,z)
             endif
          enddo  
       else  
+          
+         !print *,"at straight"
          do i=1,gbx%Nhydro
             hm_matrix(i,:,:) = sghydro%mr_hydro(:,pr,:,i)*1000.0 ! Units from kg/kg to g/kg
             if (gbx%use_reff) then
@@ -168,6 +171,53 @@ SUBROUTINE COSP_RADAR(gbx,sgx,sghydro,z)
             endif
          enddo
       endif  
+
+      !print *,"time at hydro part of the code is ",end_time - start_time
+
+      !   ----- call radar simulator -----
+      if (pr == 1) then ! Compute gaseous attenuation for all profiles
+         call radar_simulator(freq,k2,gbx%do_ray,gbx%use_gas_abs,gbx%use_mie_tables,gbx%mt, &    !  v0.2: mt changed to gbx%mt, roj
+           gbx%Nhydro,gbx%hp,gbx%Npoints,gbx%Nlevels,gbx%nsizes,gbx%D, &                         !  v0.2: hp->gbx%hp, D->gbx%d, nsizes->gbx%nsizes, roj
+           hgt_matrix,hm_matrix,re_matrix,p_matrix,t_matrix,rh_matrix, &
+           Ze_non,Ze_ray,h_atten_to_vol,g_atten_to_vol,dBZe,g_to_vol_out=g_to_vol)
+      else ! Use gaseous atteunuation for pr = 1
+         call radar_simulator(freq,k2,gbx%do_ray,gbx%use_gas_abs,gbx%use_mie_tables,gbx%mt, &
+           gbx%Nhydro,gbx%hp,gbx%Npoints,gbx%Nlevels,gbx%nsizes,gbx%D, &
+           hgt_matrix,hm_matrix,re_matrix,p_matrix,t_matrix,rh_matrix, &
+           Ze_non,Ze_ray,h_atten_to_vol,g_atten_to_vol,dBZe,g_to_vol_in=g_to_vol)
+      endif
+      ! ----- BEGIN output section -----
+      ! spaceborne radar : from TOA to SURFACE
+      if (gbx%surface_radar == 1) then
+        z%Ze_tot(:,pr,:)=dBZe(:,:)
+      else if (gbx%surface_radar == 0) then ! Spaceborne
+        z%Ze_tot(:,pr,:)=dBZe(:,gbx%Nlevels:1:-1)
+      endif
+
+  enddo !pr
+ 
+  do pr=2,sgx%Ncolumns
+      !  atmospheric profiles are the same within the same gridbox
+      !  only hydrometeor profiles will be different
+      if (hgt_reversed) then  
+         do i=1,gbx%Nhydro  
+            hm_matrix(i,:,:) = sghydro%mr_hydro(:,pr,gbx%Nlevels:1:-1,i)*1000.0 ! Units from kg/kg to g/kg
+            if (gbx%use_reff) then
+              re_matrix(i,:,:) = sghydro%Reff(:,pr,gbx%Nlevels:1:-1,i)*1.e6     ! Units from m to micron
+            endif
+         enddo  
+      else  
+          
+         !print *,"at straight"
+         do i=1,gbx%Nhydro
+            hm_matrix(i,:,:) = sghydro%mr_hydro(:,pr,:,i)*1000.0 ! Units from kg/kg to g/kg
+            if (gbx%use_reff) then
+              re_matrix(i,:,:) = sghydro%Reff(:,pr,:,i)*1.e6       ! Units from m to micron
+            endif
+         enddo
+      endif  
+
+      !print *,"time at hydro part of the code is ",end_time - start_time
 
       !   ----- call radar simulator -----
       if (pr == 1) then ! Compute gaseous attenuation for all profiles
@@ -196,6 +246,13 @@ SUBROUTINE COSP_RADAR(gbx,sgx,sghydro,z)
   !print *,"number of subcoloumns are",sgx%Ncolumns
   !print *,"Time at COSP subcoloumn loop is ", end_time - start_time 
   
+     if(masterproc) then
+       open(unit=10,file="/home/aketh/ocn_correctness_data/original.txt",status="unknown",position="append",action="write")
+       write(10,*),Ze_non,Ze_ray,h_atten_to_vol,g_atten_to_vol,dBZe
+       close(10)
+     endif
+
+
   ! Change undefined value to one defined in COSP
   where (z%Ze_tot == -999.0) z%Ze_tot = R_UNDEF
   
