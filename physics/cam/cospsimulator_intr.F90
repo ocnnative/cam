@@ -1073,9 +1073,11 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
 				free_cosp_lidarstats,free_cosp_isccp,free_cosp_misr,&
 				cosp_config,cosp_gridbox,cosp_subgrid,cosp_sgradar, &
 				cosp_sglidar,cosp_isccp,cosp_misr,cosp_vgrid,cosp_radarstats,&
-				cosp_radarstats,cosp_lidarstats
+				cosp_radarstats,cosp_lidarstats,construct_cosp_sghydro,&
+                                free_cosp_sghydro,cosp_sghydro 
    use mod_cosp_modis_simulator,	 only: construct_cosp_modis,free_cosp_modis,cosp_modis
    use mod_cosp, 	 only: cosp
+   use mod_cosp_simulator , only: gbxcopy,sgxcopy,sghydrocopy,sgradarcopy
 #else
    real(r8),parameter :: R_UNDEF = -1.0E30_r8
 #endif
@@ -1234,6 +1236,20 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    type(cosp_lidarstats) :: stlidar 			! Summary statistics from lidar simulator
    type(cosp_modis)   :: modis   			! Output from MODIS simulator (new in cosp v1.3)
    !!!type(cosp_rttov)   :: rttov   			! Output from RTTOV (not using)
+
+
+   !!!BUFFER for Xeon phi!!!!!
+
+                                                           
+   type(cosp_gridbox) :: gbxbuf                            
+   type(cosp_subgrid) :: sgxbuf                            
+   type(cosp_sgradar) :: sgradarbuf                        
+   type(cosp_sghydro) :: sghydrobuf  
+
+
+   !!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+
 
    ! COSP input variables that depend on CAM
    ! 1) Npoints = number of gridpoints COSP will process (without subsetting, Npoints=ncol)
@@ -3354,12 +3370,22 @@ if (((.not.cosp_sample_atrain) .and. Natrain .gt. 0) .or. ((cosp_sample_atrain) 
    !! new for cosp v1.3
    call construct_cosp_modis(cfg,Npoints,modis)
 
+   !call construct_cosp_vgrid(gbxbuf,nlr,use_vgrid,csat_vgrid,vgrid)
+   call construct_cosp_subgrid(Npoints, ncolumns, Nlevels, sgxbuf)
+   call construct_cosp_sgradar(cfg,Npoints,ncolumns,Nlevels,nhydro,sgradarbuf)
+   call construct_cosp_sghydro(Npoints,Ncolumns,Nlevels,Nhydro,sghydrobuf)   
+
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !  RUN COSP - RADAR/LIDAR only
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
    !print *, 'Calling the COSP simulator and running on all/atrain columns...'
    call cosp(overlap,ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
+
+   gbxbuf=gbxcopy
+   sgxbuf=sgxcopy
+   sghydrobuf=sghydrocopy
+   sgradarbuf=sgradarcopy
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !  TRANSLATE COSP OUTPUT INTO INDIVIDUAL VARIABLES FOR OUTPUT (see nc_write_cosp_1d in cosp_io.f90)

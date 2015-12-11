@@ -42,6 +42,11 @@ MODULE MOD_COSP_SIMULATOR
   USE MOD_COSP_STATS
   IMPLICIT NONE
 
+  type(cosp_gridbox),public :: gbxcopy      
+  type(cosp_subgrid),public :: sgxcopy      
+  type(cosp_sghydro),public :: sghydrocopy  
+  type(cosp_sgradar),public :: sgradarcopy
+
 CONTAINS
 
 
@@ -85,6 +90,12 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
 !   enddo
 !   enddo
   if (inconsistent)  print *, '%%%% COSP_SIMULATOR: inconsistency in mr_hydro and Reff'
+
+    gbxcopy = gbx
+    sgxcopy = sgx
+    sghydrocopy = sghydro
+    sgradarcopy = sgradar
+
   
   !+++++++++ Radar model ++++++++++  
   if (cfg%Lradar_sim) then

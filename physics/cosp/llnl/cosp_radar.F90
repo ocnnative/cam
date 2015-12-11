@@ -246,11 +246,11 @@ SUBROUTINE COSP_RADAR(gbx,sgx,sghydro,z)
   !print *,"number of subcoloumns are",sgx%Ncolumns
   !print *,"Time at COSP subcoloumn loop is ", end_time - start_time 
   
-     if(masterproc) then
-       open(unit=10,file="/home/aketh/ocn_correctness_data/original.txt",status="unknown",position="append",action="write")
-       write(10,*),Ze_non,Ze_ray,h_atten_to_vol,g_atten_to_vol,dBZe
-       close(10)
-     endif
+     !if(masterproc) then
+       !open(unit=10,file="/home/aketh/ocn_correctness_data/original.txt",status="unknown",position="append",action="write")
+       !write(10,*),Ze_non,Ze_ray,h_atten_to_vol,g_atten_to_vol,dBZe
+       !close(10)
+     !endif
 
 
   ! Change undefined value to one defined in COSP
