@@ -36,16 +36,17 @@ MODULE MOD_COSP_SIMULATOR
   USE MOD_COSP_ISCCP_SIMULATOR
   USE MOD_COSP_MODIS_SIMULATOR
   USE MOD_COSP_MISR_SIMULATOR
+  USE SPMD_UTILS, only => masterproc
 #ifdef RTTOV
   USE MOD_COSP_RTTOV_SIMULATOR 
 #endif
   USE MOD_COSP_STATS
   IMPLICIT NONE
 
-  type(cosp_gridbox),public :: gbxcopy      
-  type(cosp_subgrid),public :: sgxcopy      
-  type(cosp_sghydro),public :: sghydrocopy  
-  type(cosp_sgradar),public :: sgradarcopy
+  type(cosp_gridbox),public,save :: gbxcopy      
+  type(cosp_subgrid),public,save :: sgxcopy      
+  type(cosp_sghydro),public,save :: sghydrocopy  
+  type(cosp_sgradar),public,save :: sgradarcopy
 
 CONTAINS
 
@@ -81,6 +82,9 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
   ! Timing variables
   integer :: t0,t1,count_rate,count_max
 
+  !variables for Xeon phi optimization
+  integer,save :: flag=0
+
   inconsistent=.false.
 !   do k=1,gbx%Nhydro
 !   do j=1,gbx%Nlevels
@@ -91,14 +95,30 @@ SUBROUTINE COSP_SIMULATOR(gbx,sgx,sghydro,cfg,vgrid,sgradar,sglidar,isccp,misr,m
 !   enddo
   if (inconsistent)  print *, '%%%% COSP_SIMULATOR: inconsistency in mr_hydro and Reff'
 
-    gbxcopy = gbx
-    sgxcopy = sgx
-    sghydrocopy = sghydro
-    sgradarcopy = sgradar
+!    gbxcopy = gbx
+!    sgxcopy = sgx
+     sghydrocopy = sghydro
+!    sghydrocopy%mr_hydro(:,:,:,:) = sghydro%mr_hydro(:,:,:,:) 
+!    sghydrocopy%Reff(:,:,:,:) = sghydro%Reff(:,:,:,:)
+!    sgradarcopy = sgradar
 
+!    if(masterproc) print *,"value at simulator is ",sghydrocopy%mr_hydro 
   
   !+++++++++ Radar model ++++++++++  
   if (cfg%Lradar_sim) then
+
+
+    gbxcopy = gbx
+    sgxcopy = sgx
+    sghydrocopy = sghydro
+    sghydrocopy%mr_hydro(:,:,:,:) = sghydro%mr_hydro(:,:,:,:)
+    sghydrocopy%Reff(:,:,:,:) = sghydro%Reff(:,:,:,:)
+    sgradarcopy = sgradar
+
+    if(masterproc) print *,"value at simulator is ",sghydrocopy%mr_hydro
+
+
+
     !call system_clock(t0,count_rate,count_max)
     call cosp_radar(gbx,sgx,sghydro,sgradar)
     !call system_clock(t1,count_rate,count_max)

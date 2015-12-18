@@ -1054,7 +1054,7 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    use cam_history,      only: outfld,hist_fld_col_active 
    use cmparray_mod,     only: CmpDayNite, ExpDayNite
    use phys_grid,        only: get_rlat_all_p, get_rlon_all_p
-   use time_manager,     only: get_curr_calday,get_curr_time,get_ref_date
+   use time_manager,     only:get_curr_calday,get_curr_time,get_ref_date,get_nstep
 
    use cosp_share,       only: nprs_cosp,ntau_cosp,ntau_cosp_modis,&
 					nht_cosp,ndbze_cosp,&
@@ -1241,10 +1241,13 @@ subroutine cospsimulator_intr_run(state,pbuf, cam_in,emis,coszrs,cliqwp_in,cicew
    !!!BUFFER for Xeon phi!!!!!
 
                                                            
-   type(cosp_gridbox) :: gbxbuf                            
-   type(cosp_subgrid) :: sgxbuf                            
-   type(cosp_sgradar) :: sgradarbuf                        
-   type(cosp_sghydro) :: sghydrobuf  
+   type(cosp_gridbox),save :: gbxbuf                            
+   type(cosp_subgrid),save :: sgxbuf                            
+   type(cosp_sgradar),save :: sgradarbuf                        
+   type(cosp_sghydro),save :: sghydrobuf  
+
+   !!!!!OTHER USES DATA!!!!!!
+   integer :: deallocstat
 
 
    !!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -3370,10 +3373,46 @@ if (((.not.cosp_sample_atrain) .and. Natrain .gt. 0) .or. ((cosp_sample_atrain) 
    !! new for cosp v1.3
    call construct_cosp_modis(cfg,Npoints,modis)
 
-   !call construct_cosp_vgrid(gbxbuf,nlr,use_vgrid,csat_vgrid,vgrid)
-   call construct_cosp_subgrid(Npoints, ncolumns, Nlevels, sgxbuf)
-   call construct_cosp_sgradar(cfg,Npoints,ncolumns,Nlevels,nhydro,sgradarbuf)
-   call construct_cosp_sghydro(Npoints,Ncolumns,Nlevels,Nhydro,sghydrobuf)   
+   call construct_cosp_gridbox(time, &                          ! 1 double precision = real(r8) X
+                              time_bnds, &                    ! 1 double precision = real(r8)
+                              radar_freq, &                   ! 2 real(r8) X
+                              surface_radar, &                ! 3 integer X
+                              use_mie_tables, &               ! 4 integer X
+                              use_gas_abs, &                  ! 5 integer X
+                              do_ray, &                       ! 6 integer X 
+                              melt_lay, &                     ! 7 integer X 
+                              k2, &                           ! 8 real(r8) X
+                              Npoints, &                      ! 9 integer X
+                              Nlevels, &                      ! 10 integer X
+                              ncolumns,&                      ! 11 integer X
+                              nhydro,&                        ! 12 integer X
+                              Nprmts_max_hydro,&              ! 13 integer X
+                              Naero,&                         ! 14 integer X
+                              Nprmts_max_aero,&               ! 15 integer X
+                              Npoints_it, &                   ! 16 integer X
+                              lidar_ice_type,&                ! 17 integer X
+                              isccp_topheight,&               ! 18 integer X
+                              isccp_topheight_direction,&     ! 19 integer X
+                              overlap,&                       ! 20 integer X
+                              emsfc_lw, &                     ! 21 real X
+                              use_precipitation_fluxes,&      ! 22 logical X
+                              use_reff, &                     ! 23 logical X
+                              Platform, &                     ! 24 integer X
+                              Satellite, &                    ! 25 integer X
+                              Instrument, &                   ! 26 integer X
+                              Nchannels, &                    ! 27 integer X
+                              ZenAng, &                       ! 28 real(r8) X
+                              Channels(1:Nchannels),&         ! 29 integer X
+                              Surfem(1:Nchannels),&           ! 30 real(r8) X
+                              co2(1,1),&                      ! 31 real(r8) X
+                              ch4(1,1),&                      ! 32 real(r8) X
+                              n2o(1,1),&                      ! 33 real(r8) X
+                              co,&                            ! 34 real(r8) X
+                              gbxcopy)                        ! OUT
+   
+   call construct_cosp_subgrid(Npoints, ncolumns, Nlevels, sgxcopy)
+   call construct_cosp_sgradar(cfg,Npoints,ncolumns,Nlevels,nhydro,sgradarcopy)
+   call construct_cosp_sghydro(Npoints,Ncolumns,Nlevels,Nhydro,sghydrocopy)   
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !  RUN COSP - RADAR/LIDAR only
@@ -3382,10 +3421,87 @@ if (((.not.cosp_sample_atrain) .and. Natrain .gt. 0) .or. ((cosp_sample_atrain) 
    !print *, 'Calling the COSP simulator and running on all/atrain columns...'
    call cosp(overlap,ncolumns,cfg,vgrid,gbx,sgx,sgradar,sglidar,isccp,misr,modis,stradar,stlidar)
 
-   gbxbuf=gbxcopy
-   sgxbuf=sgxcopy
-   sghydrobuf=sghydrocopy
-   sgradarbuf=sgradarcopy
+
+      call construct_cosp_gridbox(time, &                     ! 1 double precision = real(r8) X
+                              time_bnds, &                    ! 1 double precision = real(r8)
+                              radar_freq, &                   ! 2 real(r8) X
+                              surface_radar, &                ! 3 integer X
+                              use_mie_tables, &               ! 4 integer X
+                              use_gas_abs, &                  ! 5 integer X
+                              do_ray, &                       ! 6 integer X 
+                              melt_lay, &                     ! 7 integer X 
+                              k2, &                           ! 8 real(r8) X
+                              Npoints, &                      ! 9 integer X
+                              Nlevels, &                      ! 10 integer X
+                              ncolumns,&                      ! 11 integer X
+                              nhydro,&                        ! 12 integer X
+                              Nprmts_max_hydro,&              ! 13 integer X
+                              Naero,&                         ! 14 integer X
+                              Nprmts_max_aero,&               ! 15 integer X
+                              Npoints_it, &                   ! 16 integer X
+                              lidar_ice_type,&                ! 17 integer X
+                              isccp_topheight,&               ! 18 integer X
+                              isccp_topheight_direction,&     ! 19 integer X
+                              overlap,&                       ! 20 integer X
+                              emsfc_lw, &                     ! 21 real X
+                              use_precipitation_fluxes,&      ! 22 logical X
+                              use_reff, &                     ! 23 logical X
+                              Platform, &                     ! 24 integer X
+                              Satellite, &                    ! 25 integer X
+                              Instrument, &                   ! 26 integer X
+                              Nchannels, &                    ! 27 integer X
+                              ZenAng, &                       ! 28 real(r8) X
+                              Channels(1:Nchannels),&         ! 29 integer X
+                              Surfem(1:Nchannels),&           ! 30 real(r8) X
+                              co2(1,1),&                      ! 31 real(r8) X
+                              ch4(1,1),&                      ! 32 real(r8) X
+                              n2o(1,1),&                      ! 33 real(r8) X
+                              co,&                            ! 34 real(r8) X
+                              gbxbuf)                         ! OUT
+
+   call construct_cosp_subgrid(Npoints, ncolumns, Nlevels, sgxbuf)
+   call construct_cosp_sgradar(cfg,Npoints,ncolumns,Nlevels,nhydro,sgradarbuf)
+   call construct_cosp_sghydro(Npoints,Ncolumns,Nlevels,Nhydro,sghydrobuf)
+
+   gbxbuf = gbxcopy
+   sgxbuf = sgxcopy
+   sghydrobuf = sghydrocopy
+
+   sghydrobuf%mr_hydro(:,:,:,:) = sghydrocopy%mr_hydro(:,:,:,:)
+   sghydrobuf%Reff = sghydrocopy%Reff
+
+   sgradarbuf = sgradarcopy
+
+   print *, "even earlier you know"
+
+   !call free_cosp_gridbox(gbxbuf)
+   print *, "gridbox was done at timestep",get_nstep()
+   !call free_cosp_subgrid(sgxbuf)
+   print *, "subgrid was done at timestep",get_nstep() 
+
+   if(masterproc)then
+   !deallocate(sghydrobuf%mr_hydro, STAT=deallocstat)
+   print *,"value is ",sghydrobuf%mr_hydro
+   endif
+
+
+   !deallocate(sghydrobuf%Reff,STAT=deallocstat)
+   !print *,"deallocated Reff was ",deallocstat
+
+   call free_cosp_sghydro(sghydrobuf)
+   print *, "hydro was done at timestep",get_nstep()
+   !call free_cosp_sgradar(sgradarbuf)
+   print *, "radar was done at timestep",get_nstep()
+
+
+   print *, "at first free of buf"
+
+   !call free_cosp_gridbox(gbxcopy)
+   !call free_cosp_subgrid(sgxcopy)
+   !call free_cosp_sghydro(sghydrocopy)
+   !call free_cosp_sgradar(sgradarcopy)
+
+
 
 !+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 !  TRANSLATE COSP OUTPUT INTO INDIVIDUAL VARIABLES FOR OUTPUT (see nc_write_cosp_1d in cosp_io.f90)

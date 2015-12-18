@@ -230,9 +230,9 @@ MODULE MOD_COSP_TYPES
     integer :: Ncolumns  ! Number of columns
     integer :: Nlevels   ! Number of levels
     integer :: Nhydro    ! Number of hydrometeors
-    real,dimension(:,:,:,:),pointer :: mr_hydro ! Mixing ratio of each hydrometeor 
+    real,dimension(:,:,:,:),allocatable :: mr_hydro ! Mixing ratio of each hydrometeor 
                                                 ! (Npoints,Ncolumns,Nlevels,Nhydro) [kg/kg]
-    real,dimension(:,:,:,:),pointer :: Reff     ! Effective Radius of each hydrometeor
+    real,dimension(:,:,:,:),allocatable :: Reff     ! Effective Radius of each hydrometeor
                                                 ! (Reff==0 means use default size)   
                                                 ! (Npoints,Ncolumns,Nlevels,Nhydro) [m]
   END TYPE COSP_SGHYDRO
